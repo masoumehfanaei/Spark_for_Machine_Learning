@@ -1,0 +1,682 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "source": [
+        "\n",
+        "#Binary Customer Churn\n",
+        "\n",
+        "A marketing agency has many customers that use their service to produce ads for the client/customer websites. They've noticed that they have quite a bit of churn in clients. They basically randomly assign account managers right now, but want you to create a machine learning model that will help predict which customers will churn (stop buying their service) so that they can correctly assign the customers most at risk to churn an account manager. Luckily they have some historical data, can you help them out? Create a classification algorithm that will help classify whether or not a customer churned. Then the company can test this against incoming data for future customers to predict which customers will churn and assign them an account manager.\n",
+        "\n",
+        "The data is saved as customer_churn.csv. Here are the fields and their definitions:\n",
+        "\n",
+        "+++++++++++++++++++++++++++++++++++++++++++++++++\n",
+        "\n",
+        "Name : Name of the latest contact at Company\n",
+        "\n",
+        "Age: Customer Age\n",
+        "\n",
+        "Total_Purchase: Total Ads Purchased\n",
+        "\n",
+        "Account_Manager: Binary 0=No manager, 1= Account manager assigned\n",
+        "\n",
+        "Years: Totaly Years as a customer\n",
+        "\n",
+        "Num_sites: Number of websites that use the service.\n",
+        "\n",
+        "Onboard_date: Date that the name of the latest contact was onboarded\n",
+        "\n",
+        "Location: Client HQ Address\n",
+        "\n",
+        "Company: Name of Client Company\n",
+        "\n",
+        "++++++++++++++++++++++++++++++++++++++++++++++++++\n",
+        "\n",
+        "\n",
+        "Once you've created the model and evaluated it, test out the model on some new data (you can think of this almost like a hold-out set) that your client has provided, saved under new_customers.csv. The client wants to know which customers are most likely to churn given this data (they don't have the label yet)."
+      ],
+      "metadata": {
+        "id": "8JoxpESknfRB"
+      }
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "V_KcTi-CmQvM",
+        "outputId": "b8dbe998-8b64-4e6d-efb8-877ac6cdd188"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Looking in indexes: https://pypi.org/simple, https://us-python.pkg.dev/colab-wheels/public/simple/\n",
+            "Requirement already satisfied: pyspark in /usr/local/lib/python3.7/dist-packages (3.3.1)\n",
+            "Requirement already satisfied: py4j==0.10.9.5 in /usr/local/lib/python3.7/dist-packages (from pyspark) (0.10.9.5)\n"
+          ]
+        }
+      ],
+      "source": [
+        "pip install pyspark"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from pyspark.sql import SparkSession"
+      ],
+      "metadata": {
+        "id": "iME59dtAnrGY"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "#Load the data"
+      ],
+      "metadata": {
+        "id": "wK90L-BeIYSn"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "spark = SparkSession.builder.appName('mylogreg').getOrCreate()"
+      ],
+      "metadata": {
+        "id": "YS-5X_wBn1AU"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "data = spark.read.csv('customer_churn.csv', header=True, inferSchema=True)"
+      ],
+      "metadata": {
+        "id": "DCZhCHtIn8Fd"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "data.printSchema()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "kA30_kMcoEP9",
+        "outputId": "0763489b-b741-4c39-bac6-c295993ef8a0"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "root\n",
+            " |-- Names: string (nullable = true)\n",
+            " |-- Age: double (nullable = true)\n",
+            " |-- Total_Purchase: double (nullable = true)\n",
+            " |-- Account_Manager: integer (nullable = true)\n",
+            " |-- Years: double (nullable = true)\n",
+            " |-- Num_Sites: double (nullable = true)\n",
+            " |-- Onboard_date: timestamp (nullable = true)\n",
+            " |-- Location: string (nullable = true)\n",
+            " |-- Company: string (nullable = true)\n",
+            " |-- Churn: integer (nullable = true)\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        " for item in data.head(1)[0]:\n",
+        "   print(item)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "L6_Iawd6oLX6",
+        "outputId": "8842ea8f-d7b1-434c-96f3-cee433121744"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Cameron Williams\n",
+            "42.0\n",
+            "11066.8\n",
+            "0\n",
+            "7.22\n",
+            "8.0\n",
+            "2013-08-30 07:00:40\n",
+            "10265 Elizabeth Mission Barkerburgh, AK 89518\n",
+            "Harvey LLC\n",
+            "1\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "data.columns"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "p0LFVAhSoSYL",
+        "outputId": "6eca5387-182e-4343-cf4a-fd0e0cebffc1"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "['Names',\n",
+              " 'Age',\n",
+              " 'Total_Purchase',\n",
+              " 'Account_Manager',\n",
+              " 'Years',\n",
+              " 'Num_Sites',\n",
+              " 'Onboard_date',\n",
+              " 'Location',\n",
+              " 'Company',\n",
+              " 'Churn']"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 7
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "#Preparing for MLlib"
+      ],
+      "metadata": {
+        "id": "r3a1yHH6IzTr"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from pyspark.ml.feature import VectorAssembler"
+      ],
+      "metadata": {
+        "id": "wStqK2Zaq-9x"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "assembler = VectorAssembler(inputCols=['Age',\n",
+        " 'Total_Purchase',\n",
+        " 'Account_Manager',\n",
+        " 'Years',\n",
+        " 'Num_Sites'], outputCol='features')"
+      ],
+      "metadata": {
+        "id": "G_f3TDkgsf2x"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "my_data = assembler.transform(data).na.drop()\n",
+        "my_data.show()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "_GACzMpesqVD",
+        "outputId": "06c12404-15c9-410d-dc86-45f4d61d26bf"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "+-------------------+----+--------------+---------------+-----+---------+-------------------+--------------------+--------------------+-----+--------------------+\n",
+            "|              Names| Age|Total_Purchase|Account_Manager|Years|Num_Sites|       Onboard_date|            Location|             Company|Churn|            features|\n",
+            "+-------------------+----+--------------+---------------+-----+---------+-------------------+--------------------+--------------------+-----+--------------------+\n",
+            "|   Cameron Williams|42.0|       11066.8|              0| 7.22|      8.0|2013-08-30 07:00:40|10265 Elizabeth M...|          Harvey LLC|    1|[42.0,11066.8,0.0...|\n",
+            "|      Kevin Mueller|41.0|      11916.22|              0|  6.5|     11.0|2013-08-13 00:38:46|6157 Frank Garden...|          Wilson PLC|    1|[41.0,11916.22,0....|\n",
+            "|        Eric Lozano|38.0|      12884.75|              0| 6.67|     12.0|2016-06-29 06:20:07|1331 Keith Court ...|Miller, Johnson a...|    1|[38.0,12884.75,0....|\n",
+            "|      Phillip White|42.0|       8010.76|              0| 6.71|     10.0|2014-04-22 12:43:12|13120 Daniel Moun...|           Smith Inc|    1|[42.0,8010.76,0.0...|\n",
+            "|     Cynthia Norton|37.0|       9191.58|              0| 5.56|      9.0|2016-01-19 15:31:15|765 Tricia Row Ka...|          Love-Jones|    1|[37.0,9191.58,0.0...|\n",
+            "|   Jessica Williams|48.0|      10356.02|              0| 5.12|      8.0|2009-03-03 23:13:37|6187 Olson Mounta...|        Kelly-Warren|    1|[48.0,10356.02,0....|\n",
+            "|        Eric Butler|44.0|      11331.58|              1| 5.23|     11.0|2016-12-05 03:35:43|4846 Savannah Roa...|   Reynolds-Sheppard|    1|[44.0,11331.58,1....|\n",
+            "|      Zachary Walsh|32.0|       9885.12|              1| 6.92|      9.0|2006-03-09 14:50:20|25271 Roy Express...|          Singh-Cole|    1|[32.0,9885.12,1.0...|\n",
+            "|        Ashlee Carr|43.0|       14062.6|              1| 5.46|     11.0|2011-09-29 05:47:23|3725 Caroline Str...|           Lopez PLC|    1|[43.0,14062.6,1.0...|\n",
+            "|     Jennifer Lynch|40.0|       8066.94|              1| 7.11|     11.0|2006-03-28 15:42:45|363 Sandra Lodge ...|       Reed-Martinez|    1|[40.0,8066.94,1.0...|\n",
+            "|       Paula Harris|30.0|      11575.37|              1| 5.22|      8.0|2016-11-13 13:13:01|Unit 8120 Box 916...|Briggs, Lamb and ...|    1|[30.0,11575.37,1....|\n",
+            "|     Bruce Phillips|45.0|       8771.02|              1| 6.64|     11.0|2015-05-28 12:14:03|Unit 1895 Box 094...|    Figueroa-Maynard|    1|[45.0,8771.02,1.0...|\n",
+            "|       Craig Garner|45.0|       8988.67|              1| 4.84|     11.0|2011-02-16 08:10:47|897 Kelley Overpa...|     Abbott-Thompson|    1|[45.0,8988.67,1.0...|\n",
+            "|       Nicole Olson|40.0|       8283.32|              1|  5.1|     13.0|2012-11-22 05:35:03|11488 Weaver Cape...|Smith, Kim and Ma...|    1|[40.0,8283.32,1.0...|\n",
+            "|     Harold Griffin|41.0|       6569.87|              1|  4.3|     11.0|2015-03-28 02:13:44|1774 Peter Row Ap...|Snyder, Lee and M...|    1|[41.0,6569.87,1.0...|\n",
+            "|       James Wright|38.0|      10494.82|              1| 6.81|     12.0|2015-07-22 08:38:40|45408 David Path ...|      Sanders-Pierce|    1|[38.0,10494.82,1....|\n",
+            "|      Doris Wilkins|45.0|       8213.41|              1| 7.35|     11.0|2006-09-03 06:13:55|28216 Wright Moun...|Andrews, Adams an...|    1|[45.0,8213.41,1.0...|\n",
+            "|Katherine Carpenter|43.0|      11226.88|              0| 8.08|     12.0|2006-10-22 04:42:38|Unit 4948 Box 481...|Morgan, Phillips ...|    1|[43.0,11226.88,0....|\n",
+            "|     Lindsay Martin|53.0|       5515.09|              0| 6.85|      8.0|2015-10-07 00:27:10|69203 Crosby Divi...|      Villanueva LLC|    1|[53.0,5515.09,0.0...|\n",
+            "|        Kathy Curry|46.0|        8046.4|              1| 5.69|      8.0|2014-11-06 23:47:14|9569 Caldwell Cre...|Berry, Orr and Ca...|    1|[46.0,8046.4,1.0,...|\n",
+            "+-------------------+----+--------------+---------------+-----+---------+-------------------+--------------------+--------------------+-----+--------------------+\n",
+            "only showing top 20 rows\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "my_final_data = my_data.select('features','churn')"
+      ],
+      "metadata": {
+        "id": "_z64pobGswAk"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "#Splitting the data"
+      ],
+      "metadata": {
+        "id": "atlznYs7JAEg"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_data, test_data = my_final_data.randomSplit([0.7,0.3])"
+      ],
+      "metadata": {
+        "id": "Is2lYtpMtrbk"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "#Fit the model"
+      ],
+      "metadata": {
+        "id": "Wwhd26_0JF9u"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from pyspark.ml.classification import LogisticRegression"
+      ],
+      "metadata": {
+        "id": "osjFZGoQsx5I"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "lr = LogisticRegression(labelCol='churn')"
+      ],
+      "metadata": {
+        "id": "W3L4Cs9Lt7cr"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "fitted_lr = lr.fit(train_data)"
+      ],
+      "metadata": {
+        "id": "7wz4_XL0uIOj"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training_sum = fitted_lr.summary"
+      ],
+      "metadata": {
+        "id": "J9M0mCgpuQJ2"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training_sum.predictions.describe().show()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "9HoLcJxhuZPi",
+        "outputId": "a767de3c-b0a6-40d8-d794-333a382ec0cf"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "+-------+-------------------+-------------------+\n",
+            "|summary|              churn|         prediction|\n",
+            "+-------+-------------------+-------------------+\n",
+            "|  count|                635|                635|\n",
+            "|   mean|0.17795275590551182|0.13543307086614173|\n",
+            "| stddev| 0.3827744857128543|0.34245531128822343|\n",
+            "|    min|                0.0|                0.0|\n",
+            "|    max|                1.0|                1.0|\n",
+            "+-------+-------------------+-------------------+\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "#Evaluate results"
+      ],
+      "metadata": {
+        "id": "2kTVwjd6JwnD"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from pyspark.ml.evaluation import BinaryClassificationEvaluator"
+      ],
+      "metadata": {
+        "id": "jU4bKemruh-L"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pred_and_labels = fitted_lr.evaluate(test_data)"
+      ],
+      "metadata": {
+        "id": "NpEx864xusXr"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pred_and_labels.predictions.show()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "4zlxfqheuvoZ",
+        "outputId": "0a0e3f5b-3272-48ad-a5e2-d860dd7b8c2d"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "+--------------------+-----+--------------------+--------------------+----------+\n",
+            "|            features|churn|       rawPrediction|         probability|prediction|\n",
+            "+--------------------+-----+--------------------+--------------------+----------+\n",
+            "|[26.0,8787.39,1.0...|    1|[0.43430708300304...|[0.60690168970891...|       0.0|\n",
+            "|[26.0,8939.61,0.0...|    0|[6.01725526600237...|[0.99756957381071...|       0.0|\n",
+            "|[27.0,8628.8,1.0,...|    0|[5.03623938224676...|[0.99354381375326...|       0.0|\n",
+            "|[28.0,8670.98,0.0...|    0|[7.41539606619338...|[0.99939844813433...|       0.0|\n",
+            "|[28.0,11245.38,0....|    0|[3.28387551681242...|[0.96387148458705...|       0.0|\n",
+            "|[29.0,8688.17,1.0...|    1|[2.39056093201608...|[0.91610468965487...|       0.0|\n",
+            "|[30.0,6744.87,0.0...|    0|[3.24698776200838...|[0.96256472114712...|       0.0|\n",
+            "|[30.0,8874.83,0.0...|    0|[2.8810984397299,...|[0.94690411665627...|       0.0|\n",
+            "|[30.0,10183.98,1....|    0|[2.62129553274506...|[0.93221961207512...|       0.0|\n",
+            "|[30.0,10960.52,1....|    0|[2.06665812156333...|[0.88762003828137...|       0.0|\n",
+            "|[30.0,13473.35,0....|    0|[2.60763808158545...|[0.93135153878056...|       0.0|\n",
+            "|[31.0,5387.75,0.0...|    0|[2.19121334778034...|[0.89945768698579...|       0.0|\n",
+            "|[31.0,7073.61,0.0...|    0|[2.80642593961747...|[0.94302208359952...|       0.0|\n",
+            "|[31.0,8688.21,0.0...|    0|[6.37374967569277...|[0.99829715342735...|       0.0|\n",
+            "|[31.0,10182.6,1.0...|    0|[4.57713423234899...|[0.98982036410365...|       0.0|\n",
+            "|[31.0,11743.24,0....|    0|[6.28575939854424...|[0.99814082103973...|       0.0|\n",
+            "|[32.0,5756.12,0.0...|    0|[3.85165807040527...|[0.97919745688833...|       0.0|\n",
+            "|[32.0,6367.22,1.0...|    0|[3.00691439859118...|[0.95288552057662...|       0.0|\n",
+            "|[32.0,8011.38,0.0...|    0|[1.80706587242013...|[0.85900688436207...|       0.0|\n",
+            "|[32.0,8575.71,0.0...|    0|[3.61167732469075...|[0.97370366214713...|       0.0|\n",
+            "+--------------------+-----+--------------------+--------------------+----------+\n",
+            "only showing top 20 rows\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Using AUC:"
+      ],
+      "metadata": {
+        "id": "UfjXkAcFKaaW"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "churn_eval = BinaryClassificationEvaluator(rawPredictionCol='prediction',\n",
+        "                                           labelCol='churn')"
+      ],
+      "metadata": {
+        "id": "0VC3ziq-u09Q"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "auc = churn_eval.evaluate(pred_and_labels.predictions)\n",
+        "auc"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "vYfkSiuRvL3M",
+        "outputId": "966bb29e-e9f7-4f6b-f583-1c23c32db04f"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "0.7866880037932668"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 31
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "#Predict on brand new unlabeled data"
+      ],
+      "metadata": {
+        "id": "Wq_abQ3fvSe0"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "final_lr_model = lr.fit(my_final_data)"
+      ],
+      "metadata": {
+        "id": "A5gEIZU-vOri"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "new_customers = spark.read.csv('new_customers.csv',inferSchema=True,\n",
+        "                              header=True)"
+      ],
+      "metadata": {
+        "id": "WtQFglDcvZB0"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "new_customers.printSchema()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Rawv-pe4vyHC",
+        "outputId": "495818de-1221-4348-d43a-5a81b1dc2265"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "root\n",
+            " |-- Names: string (nullable = true)\n",
+            " |-- Age: double (nullable = true)\n",
+            " |-- Total_Purchase: double (nullable = true)\n",
+            " |-- Account_Manager: integer (nullable = true)\n",
+            " |-- Years: double (nullable = true)\n",
+            " |-- Num_Sites: double (nullable = true)\n",
+            " |-- Onboard_date: timestamp (nullable = true)\n",
+            " |-- Location: string (nullable = true)\n",
+            " |-- Company: string (nullable = true)\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "test_new_customers = assembler.transform(new_customers)"
+      ],
+      "metadata": {
+        "id": "j2buQxBcv5Ks"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "final_results = final_lr_model.transform(test_new_customers)"
+      ],
+      "metadata": {
+        "id": "5kiFHpulv_MF"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "final_results.select('Company','prediction').show()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "72kLqi8IwKmm",
+        "outputId": "19ae8f57-08bf-44cc-9fa7-1f3a625f3728"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "+----------------+----------+\n",
+            "|         Company|prediction|\n",
+            "+----------------+----------+\n",
+            "|        King Ltd|       0.0|\n",
+            "|   Cannon-Benson|       1.0|\n",
+            "|Barron-Robertson|       1.0|\n",
+            "|   Sexton-Golden|       1.0|\n",
+            "|        Wood LLC|       0.0|\n",
+            "|   Parks-Robbins|       1.0|\n",
+            "+----------------+----------+\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "XuwVPkBwwMLV"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
